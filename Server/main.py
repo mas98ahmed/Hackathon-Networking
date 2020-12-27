@@ -1,5 +1,7 @@
 import socket
 import os
+from struct import pack
+
 import scapy
 from time import time, sleep
 from threading import Thread, Lock
@@ -10,11 +12,16 @@ DATA_LOCK = Lock()
 POINTS_LOCK = Lock()
 
 GAME_TIME = 10
+UDP_MSG_TIME = 10
 SEARCH_TIME = 10
 
+DEBUG = True
 ServerSocket = socket.socket()
-broadcast_host = '255.255.255.255'
-port = 1233
+udp_socket = socket.socket()
+UDP_host = '255.255.255.255'
+UDP_port = 13117
+TCP_host = ""
+TCP_port = 2127
 
 TEAMS = 2
 
@@ -25,14 +32,17 @@ THREADS = []
 
 
 def send_udp():
-    while time() < 10:
-        # TODO send udp msg
+    start_time = time()
+    msg = pack('IbH', 0xfeedbeef, 2, UDP_port)
+    ip = UDP_host if DEBUG else UDP_port
+    while UDP_MSG_TIME > time() - start_time:
+        udp_socket.sendto(msg, (ip, UDP_port))
         sleep(1)
 
 
 def game(connection, team):     # game function
-    # TODO reset timer
-    while GAME_TIME > time():
+    start_time = time()
+    while GAME_TIME > time() - start_time:
         connection.settimeout(max(GAME_TIME - time(), 0))
         try:
             data = connection.recv(2048)
@@ -85,24 +95,26 @@ def main():
     global THREADS
 
     try:
-        ServerSocket.bind((broadcast_host, port))
+        ServerSocket.bind((TCP_host, TCP_port))
+        udp_socket.bind((UDP_host, UDP_port))
     except socket.error as e:
         print(str(e))
-
-    print('Waiting for a Connection..')
-    ServerSocket.listen(5)
 
     for i in range(1, TEAMS):
         CONN_DICT[i] = []
         POINTS_DICT[i] = 0
 
-    # TODO reset timer
+    print('“Server started, listening on IP address ' + TCP_host)
+    ServerSocket.listen(5)
+
     start_new_thread(send_udp, ())
-    while time() < SEARCH_TIME:
+    start_time = time()
+    while SEARCH_TIME > time() - start_time:
         connection, address = ServerSocket.accept()
+        name = ServerSocket.recv(2048)
         team = random.randint(1, TEAMS)
-        CONN_DICT[team] += [connection]
-        THREADS += [[connection, team]]
+        CONN_DICT[team] += [name, connection]
+        THREADS += [[name, connection, team]]
 
     #   start game
     for (conn, team) in THREADS:
