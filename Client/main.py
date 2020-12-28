@@ -1,23 +1,23 @@
-from socket import *
+import socket
 from struct import *
-from getch import *
+import getch
 
 
 def ConnectServer():
-    client_socket = socket(AF_INET, SOCK_DGRAM)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     client_socket.bind(("255.255.255.255", 13117))
     data, address = client_socket.recvfrom(1024)
     msg = unpack(data)
     if len(msg) == 3:
         test_1, test_2, tcp_port = msg
-    while len(msg) > 3 or test_1 is not 0xfeedbeef or test_2 is not 0x2:
+    while len(msg) is not 3 or test_1 is not 0xfeedbeef or test_2 is not 0x2:
         data, address = client_socket.recvfrom(1024)
         msg = unpack(data)
         if len(msg) == 3:
             test_1, test_2, tcp_port = msg
     client_socket.send(pack("?", True))
     client_socket.close()
-    return tuple(tcp_port)
+    return tuple(tcp_port, address)
 
 
 def TCPConnect(tcp_port, address):
@@ -32,7 +32,7 @@ def GameMode(tcp_socket):
     beginning_msg = tcp_socket.recv(2048)
     print(beginning_msg + "\n")
     while Terminate is not True:
-        click = getch()
+        click = getch.getch()
         try:
             tcp_socket.send(click)
         except:

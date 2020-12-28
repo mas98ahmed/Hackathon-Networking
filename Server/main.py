@@ -11,13 +11,15 @@ import random
 DATA_LOCK = Lock()
 POINTS_LOCK = Lock()
 
+SEARCHING_FOR_PLAYERS = True
+
 GAME_TIME = 10
 UDP_MSG_TIME = 10
 SEARCH_TIME = 10
 
 DEBUG = True
-ServerSocket = socket.socket()
-udp_socket = socket.socket()
+ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 UDP_host = '255.255.255.255'
 UDP_port = 13117
 TCP_host = ""
@@ -32,12 +34,14 @@ THREADS = []
 
 
 def send_udp():
+    global SEARCHING_FOR_PLAYERS
     start_time = time()
-    msg = pack('IbH', 0xfeedbeef, 2, UDP_port)
+    msg = pack('IbH', 0xfeedbeef, 0x2, TCP_port)
     ip = UDP_host if DEBUG else UDP_port
     while UDP_MSG_TIME > time() - start_time:
         udp_socket.sendto(msg, (ip, UDP_port))
         sleep(1)
+    SEARCHING_FOR_PLAYERS = False
 
 
 def game(connection, team):     # game function
@@ -90,6 +94,7 @@ def info(connection, team):     # sending info about the game to the client
 
 
 def main():
+    global SEARCHING_FOR_PLAYERS
     global CONN_DICT
     global POINTS_DICT
     global THREADS
@@ -107,9 +112,9 @@ def main():
     print('“Server started, listening on IP address ' + TCP_host)
     ServerSocket.listen(5)
 
+    SEARCHING_FOR_PLAYERS = True
     start_new_thread(send_udp, ())
-    start_time = time()
-    while SEARCH_TIME > time() - start_time:
+    while SEARCHING_FOR_PLAYERS:
         connection, address = ServerSocket.accept()
         name = ServerSocket.recv(2048)
         team = random.randint(1, TEAMS)
