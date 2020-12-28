@@ -1,8 +1,7 @@
 import socket
 import os
 from struct import pack
-
-import scapy
+import scapy.all as scapy
 from time import time, sleep
 from threading import Thread, Lock
 from _thread import *
@@ -17,13 +16,19 @@ GAME_TIME = 10
 UDP_MSG_TIME = 10
 SEARCH_TIME = 10
 
-DEBUG = True
+DEV_ip = "eth1"
+TEST_ip = "eth2"
+
+TEST = False
+
+IP = scapy.get_if_addr(TEST_ip if TEST else DEV_ip)
+
 ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 UDP_host = '255.255.255.255'
 UDP_port = 13117
-TCP_host = ""
-TCP_port = 2127
+TCP_host = IP
+TCP_port = 2500
 
 TEAMS = 2
 
@@ -35,9 +40,10 @@ THREADS = []
 
 def send_udp():
     global SEARCHING_FOR_PLAYERS
+    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # enable broadcasts
     start_time = time()
     msg = pack('IbH', 0xfeedbeef, 0x2, TCP_port)
-    ip = UDP_host if DEBUG else UDP_port
+    ip = UDP_host
     while UDP_MSG_TIME > time() - start_time:
         udp_socket.sendto(msg, (ip, UDP_port))
         sleep(1)
@@ -76,21 +82,17 @@ def interesting_info():     # function for extra info
     return "letter with most appearances is \'" + max_letter + "\' with " + str(max_appearance) + " appearances."
 
 
-def info(connection, team):     # sending info about the game to the client
+def info():     # sending info about the game to the client
     winner = 0
     max_score = 0
-    score = 0
     for (team_, score_) in POINTS_DICT:
         if max_score < score_:
             winner = team_
-        if team_ == team:
-            score = score_
-    winner_msg = "you won!" if winner == team else "team " + str(winner) + "."
-    info_msg = "\nyour team: " + str(team) + "\nyour score: " + str(score)
+    info_msg = "team " + winner + " is the winner"
     more_info = "\n" + interesting_info()
 
-    final_msg = winner_msg + info_msg + more_info
-    connection.sendall(str.encode(final_msg))
+    final_msg = info_msg + more_info
+    print(final_msg)
 
 
 def main():
@@ -99,39 +101,55 @@ def main():
     global POINTS_DICT
     global THREADS
 
-    try:
-        ServerSocket.bind((TCP_host, TCP_port))
-        udp_socket.bind((UDP_host, UDP_port))
-    except socket.error as e:
-        print(str(e))
+    while True:
+        try:
+            ServerSocket.bind((TCP_host, TCP_port))
+        except socket.error as e:
+            print("1. " + str(e))
+        try:
+            udp_socket.bind((UDP_host, UDP_port))
+        except socket.error as e:
+            print("2. " + str(e))
 
-    for i in range(1, TEAMS):
-        CONN_DICT[i] = []
-        POINTS_DICT[i] = 0
+        for i in range(1, TEAMS):
+            CONN_DICT[i] = []
+            POINTS_DICT[i] = 0
 
-    print('“Server started, listening on IP address ' + TCP_host)
-    ServerSocket.listen(5)
+        print('Server started, listening on IP address ' + TCP_host)
+        ServerSocket.listen(5)
 
-    SEARCHING_FOR_PLAYERS = True
-    start_new_thread(send_udp, ())
-    while SEARCHING_FOR_PLAYERS:
-        connection, address = ServerSocket.accept()
-        name = ServerSocket.recv(2048)
-        team = random.randint(1, TEAMS)
-        CONN_DICT[team] += [name, connection]
-        THREADS += [[name, connection, team]]
+        SEARCHING_FOR_PLAYERS = True
+        start_new_thread(send_udp, ())
+        while SEARCHING_FOR_PLAYERS:
+            ServerSocket.settimeout(0.1)
+            try:
+                connection, address = ServerSocket.accept()
+                name = ServerSocket.recv(2048)
+            except Exception as e:
+                continue
+            team = random.randint(1, TEAMS)
+            CONN_DICT[team] += [name, connection]
+            THREADS += [[name, connection, team]]
+        udp_socket.close()
 
-    #   start game
-    for (conn, team) in THREADS:
-        start_new_thread(game, (conn, team))
+        #   if noone connected
+        if not THREADS:
+            print("nope")
+            continue
 
-    sleep(12)
-    #   send game info
-    for (conn, team) in THREADS:
-        start_new_thread(info, (conn, team))
+        #   start game
+        for (conn, team) in THREADS:
+            start_new_thread(game, (conn, team))
 
-    #   close connections
-    for (conn, team) in THREADS:
-        conn.close()
+        sleep(12)
+        #   print game info
+        info()
 
-    ServerSocket.close()
+        #   close connections
+        for (conn, team) in THREADS:
+            conn.close()
+
+        ServerSocket.close()
+
+
+main()
