@@ -1,5 +1,6 @@
 from socket import *
 from struct import *
+from getch import *
 
 
 def ConnectServer():
@@ -27,15 +28,23 @@ def TCPConnect(tcp_port, address):
 
 
 def GameMode(tcp_socket):
+    Terminate = False
     beginning_msg = tcp_socket.recv(2048)
     print(beginning_msg + "\n")
+    while Terminate is not True:
+        click = getch()
+        try:
+            tcp_socket.send(click)
+        except:
+            Terminate = True
+    tcp_socket.close()
     
 
 if __name__ == "__main__":
     print("Client started, listening for offer requests...")
     while True:
         tcp_port, address = ConnectServer()
-        print("Received offer from %s, attempting to connect...".format(address))
+        print("Received offer from {0}, attempting to connect...".format(address))
         TCP_socket = TCPConnect(tcp_port, address)
         GameMode(TCP_socket)
         print("Server disconnected, listening for offer requests...")
