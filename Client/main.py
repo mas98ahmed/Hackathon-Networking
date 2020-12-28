@@ -3,7 +3,6 @@ from struct import *
 
 
 def ConnectServer():
-    global tcp_port, test_1, test_2
     client_socket = socket(AF_INET, SOCK_DGRAM)
     client_socket.bind(("255.255.255.255", 13117))
     data, address = client_socket.recvfrom(1024)
@@ -19,14 +18,24 @@ def ConnectServer():
     client_socket.close()
     return tuple(tcp_port)
 
+
 def TCPConnect(tcp_port, address):
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp_socket.connect((address, tcp_port))
+    tcp_socket.send("Mystic" + "\n")
     return tcp_socket
 
 
+def GameMode(tcp_socket):
+    beginning_msg = tcp_socket.recv(2048)
+    print(beginning_msg + "\n")
+    
+
 if __name__ == "__main__":
     print("Client started, listening for offer requests...")
-    tcp_port, address = ConnectServer()
-    print("Received offer from %s, attempting to connect...".format(address))
-    TCP_socket = TCPConnect(tcp_port, address)
+    while True:
+        tcp_port, address = ConnectServer()
+        print("Received offer from %s, attempting to connect...".format(address))
+        TCP_socket = TCPConnect(tcp_port, address)
+        GameMode(TCP_socket)
+        print("Server disconnected, listening for offer requests...")
